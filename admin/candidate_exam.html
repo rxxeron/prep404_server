@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Prep404 • Live Model Test</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/katex.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/katex.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
+  <style>
+    body { background-color: #030712; color: #f3f4f6; font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+    .katex { font-size: 1.08em; color: #60a5fa !important; }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #0b0f19; }
+    ::-webkit-scrollbar-thumb { background: #1f293d; border-radius: 4px; }
+  </style>
+</head>
+<body class="selection:bg-indigo-500 selection:text-white antialiased min-h-screen flex flex-col justify-between">
+
+  <!-- Header -->
+  <header class="border-b border-gray-800 bg-gray-950/80 backdrop-blur-xl sticky top-0 z-40">
+    <div class="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-xl bg-indigo-600 flex items-center justify-center font-black text-white text-base shadow-md shadow-indigo-600/30">
+          404
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="font-extrabold text-sm tracking-tight text-white">Prep404</span>
+            <span class="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-mono font-bold border border-emerald-500/20">LIVE TEST</span>
+          </div>
+          <p id="headerExamTitle" class="text-xs text-gray-400 truncate max-w-[240px] sm:max-w-md">Loading model test...</p>
+        </div>
+      </div>
+
+      <div id="headerTimerContainer" class="hidden flex items-center gap-2 bg-gray-900 border border-gray-800 px-3 py-1.5 rounded-xl">
+        <span class="text-xs text-gray-400">⏱️</span>
+        <span id="countdownTimer" class="font-mono font-bold text-sm text-emerald-400">30:00</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="max-w-4xl mx-auto px-4 py-8 flex-1 w-full">
+    <!-- STEP 1: Candidate Entry Screen -->
+    <div id="stepEntry" class="bg-gray-900/90 border border-gray-800 rounded-3xl p-6 sm:p-8 shadow-2xl max-w-xl mx-auto space-y-6">
+      <div class="text-center space-y-2">
+        <span class="px-3 py-1 rounded-full text-xs font-bold bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 uppercase tracking-wider">
+          Competitive Model Test
+        </span>
+        <h1 id="entryTitle" class="text-xl sm:text-2xl font-black text-white pt-1">Daily Live Model Test</h1>
+        <p class="text-xs text-gray-400">Complete the test before time expires to claim your real-time national rank</p>
+      </div>
+
+      <div class="grid grid-cols-3 gap-3 p-4 rounded-2xl bg-gray-950 border border-gray-800/80 text-center">
+        <div>
+          <div class="text-xs text-gray-500">Duration</div>
+          <div id="entryDuration" class="text-base font-bold text-white mt-0.5">30 Mins</div>
+        </div>
+        <div>
+          <div class="text-xs text-gray-500">Total Marks</div>
+          <div id="entryMarks" class="text-base font-bold text-emerald-400 mt-0.5">50.0</div>
+        </div>
+        <div>
+          <div class="text-xs text-gray-500">Negative Mark</div>
+          <div id="entryNegative" class="text-base font-bold text-rose-400 mt-0.5">-0.25</div>
+        </div>
+      </div>
+
+      <form onsubmit="startTest(event)" class="space-y-4 pt-2">
+        <div>
+          <label class="block text-xs font-semibold text-gray-400 mb-1">Your Full Name</label>
+          <input type="text" id="candidateNameInput" placeholder="e.g. Tahmidur Rahman" required class="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-indigo-500">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-gray-400 mb-1">College / Institution</label>
+          <input type="text" id="candidateInstInput" placeholder="e.g. Notre Dame College" required class="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-indigo-500">
+        </div>
+        <button type="submit" class="w-full py-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs uppercase tracking-wider shadow-lg shadow-emerald-600/30 transition-all active:scale-95">
+          Start Test Now 🚀
+        </button>
+      </form>
+      <p id="startError" role="alert" class="hidden text-sm text-rose-300"></p>
+    </div>
+
+    <!-- STEP 2: Live Test Examination Screen -->
+    <div id="stepExam" class="hidden space-y-6">
+      <div id="questionsContainer" class="space-y-6">
+        <!-- Rendered via JS -->
+      </div>
+
+      <div class="p-4 bg-gray-900 border border-gray-800 rounded-2xl flex items-center justify-between sticky bottom-4 shadow-2xl backdrop-blur-md">
+        <div class="text-xs text-gray-400">
+          Answered: <strong id="answeredCountBadge" class="text-emerald-400">0</strong> / <span id="totalQuestionsBadge">0</span>
+        </div>
+        <button onclick="submitExam()" class="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md shadow-emerald-600/20 active:scale-95 transition-all">
+          Submit Test 🏁
+        </button>
+      </div>
+    </div>
+
+    <!-- STEP 3: Results & Merit Review -->
+    <div id="stepResult" class="hidden space-y-6 max-w-2xl mx-auto">
+      <div class="bg-gray-900/90 border border-gray-800 rounded-3xl p-6 sm:p-8 shadow-2xl text-center space-y-5">
+        <div class="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-emerald-500/10 text-3xl border border-emerald-500/20 shadow-inner">
+          🏆
+        </div>
+        <div>
+          <h2 class="text-2xl font-black text-white" id="resultName">Congratulations!</h2>
+          <p class="text-xs text-gray-400 mt-1" id="resultCollege">College Candidate</p>
+        </div>
+
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 p-4 rounded-2xl bg-gray-950 border border-gray-800/80">
+          <div>
+            <div class="text-xs text-gray-500">Your Score</div>
+            <div id="resultScore" class="text-xl font-black text-emerald-400 mt-0.5">--</div>
+          </div>
+          <div>
+            <div class="text-xs text-gray-500">Live Rank</div>
+            <div id="resultRank" class="text-xl font-black text-amber-400 mt-0.5">#--</div>
+          </div>
+          <div>
+            <div class="text-xs text-gray-500">Correct</div>
+            <div id="resultCorrect" class="text-xl font-black text-white mt-0.5">--</div>
+          </div>
+          <div>
+            <div class="text-xs text-gray-500">Wrong</div>
+            <div id="resultWrong" class="text-xl font-black text-rose-400 mt-0.5">--</div>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-3">
+          <button onclick="shareWhatsApp()" class="flex-1 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition-all shadow-md shadow-emerald-600/20 flex items-center justify-center gap-2">
+            <span>💬</span> Share Rank on WhatsApp
+          </button>
+          <a href="/admin" class="px-4 py-3 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-300 font-bold text-xs transition-all">
+            Admin Studio
+          </a>
+        </div>
+      </div>
+
+      <!-- Socratic Review of Questions -->
+      <div class="bg-gray-900 border border-gray-800 rounded-3xl p-6 shadow-xl space-y-4">
+        <h3 class="text-base font-bold text-white flex items-center gap-2">
+          <span>💡</span> Socratic Solutions & Explanations
+        </h3>
+        <div id="feedbackList" class="space-y-4">
+          <!-- Rendered via JS -->
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Footer -->
+  <footer class="border-t border-gray-800/80 bg-gray-950 py-4 px-6 text-center text-xs text-gray-500">
+    Prep404 Competitive Engine • Ultra-Low Latency Redis Model Test Platform
+  </footer>
+
+  <script>
+    const slug = window.location.pathname.split('/m/')[1] || 'daily-nsu-test-24';
+    let examData = null;
+    let selectedAnswers = {};
+    let sessionId = null;
+    let timerInterval = null;
+    let remainingSeconds = 1800;
+    let startTime = Date.now();
+    let shareText = '';
+
+    function escapeHtml(str) {
+      if (str == null) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    function renderKaTeX(text) {
+      if (!text) return '';
+      const rendered = String(text)
+        .replace(/\$\$([^\$]+)\$\$/g, (match, math) => {
+          try {
+            return katex.renderToString(math.trim(), { displayMode: true, throwOnError: false });
+          } catch { return escapeHtml(math); }
+        })
+        .replace(/\$([^\$]+)\$/g, (match, math) => {
+          try {
+            return katex.renderToString(math.trim(), { displayMode: false, throwOnError: false });
+          } catch { return escapeHtml(math); }
+        });
+      return typeof DOMPurify !== 'undefined' ? DOMPurify.sanitize(rendered) : escapeHtml(rendered);
+    }
+
+    async function loadExam() {
+      try {
+        const res = await fetch(`/api/v1/public/exam/${slug}`);
+        if (res.ok) {
+          const data = await res.json();
+          examData = data.exam;
+          setupEntryScreen();
+        }
+      } catch (_) {}
+    }
+
+    function setupEntryScreen() {
+      if (!examData) return;
+      document.getElementById('headerExamTitle').textContent = examData.title;
+      document.getElementById('entryTitle').textContent = examData.title;
+      document.getElementById('entryDuration').textContent = `${examData.durationMinutes} Mins`;
+      document.getElementById('entryMarks').textContent = examData.totalMarks.toFixed(1);
+      document.getElementById('entryNegative').textContent = `-${examData.negativeMark || 0.25}`;
+      remainingSeconds = (examData.durationMinutes || 30) * 60;
+    }
+
+    async function startTest(e) {
+      e.preventDefault();
+      const button = e.currentTarget.querySelector('button[type="submit"]');
+      const error = document.getElementById('startError');
+      button.disabled = true;
+      error.classList.add('hidden');
+      try {
+        const response = await fetch(`/api/v1/public/exam/${slug}/start`, { method: 'POST' });
+        const result = await response.json();
+        if (!response.ok || !result.sessionId) throw new Error(result.error || 'Unable to start this exam. Please try again.');
+        sessionId = result.sessionId;
+      } catch (err) {
+        error.textContent = err.message || 'Unable to start this exam. Please try again.';
+        error.classList.remove('hidden');
+        button.disabled = false;
+        return;
+      }
+      document.getElementById('stepEntry').classList.add('hidden');
+      document.getElementById('stepExam').classList.remove('hidden');
+      document.getElementById('headerTimerContainer').classList.remove('hidden');
+
+      renderQuestions();
+      startTimer();
+    }
+
+    function startTimer() {
+      startTime = Date.now();
+      const timerEl = document.getElementById('countdownTimer');
+      timerInterval = setInterval(() => {
+        remainingSeconds--;
+        if (remainingSeconds <= 0) {
+          clearInterval(timerInterval);
+          submitExam();
+          return;
+        }
+        const m = Math.floor(remainingSeconds / 60);
+        const s = remainingSeconds % 60;
+        timerEl.textContent = `${m < 10 ? '0' : ''}${m}:${s < 10 ? '0' : ''}${s}`;
+        if (remainingSeconds < 120) {
+          timerEl.className = 'font-mono font-bold text-sm text-rose-400 animate-pulse';
+        }
+      }, 1000);
+    }
+
+    function renderQuestions() {
+      const container = document.getElementById('questionsContainer');
+      const questions = examData.questions || [];
+      document.getElementById('totalQuestionsBadge').textContent = questions.length;
+
+      container.innerHTML = questions.map((q, idx) => `
+        <div class="bg-gray-900 border border-gray-800 rounded-2xl p-5 shadow-xl space-y-4">
+          <div class="flex items-center justify-between text-xs text-gray-500 border-b border-gray-800/80 pb-2">
+            <span class="font-bold text-indigo-400">Question ${idx + 1} of ${questions.length}</span>
+            <span>Single Choice</span>
+          </div>
+
+          <div class="text-base text-gray-100 font-medium leading-relaxed">
+            ${renderKaTeX(q.questionText)}
+          </div>
+
+          <div class="space-y-2.5">
+            ${(q.options || []).map(opt => `
+              <label class="flex items-center gap-3 p-3 rounded-xl bg-gray-950 border border-gray-800/80 hover:border-indigo-500/50 cursor-pointer transition-all">
+                <input type="radio" name="question_${escapeHtml(q.id)}" value="${escapeHtml(opt.id)}" data-qid="${escapeHtml(q.id)}" data-optid="${escapeHtml(opt.id)}" class="exam-radio text-indigo-600 focus:ring-0">
+                <span class="w-6 font-bold text-xs text-gray-400">${escapeHtml(opt.id)})</span>
+                <span class="text-sm text-gray-200">${renderKaTeX(opt.text)}</span>
+              </label>
+            `).join('')}
+          </div>
+        </div>
+      `).join('');
+    }
+
+    document.getElementById('questionsContainer').addEventListener('change', (e) => {
+      const target = e.target;
+      if (target && target.matches('input[type="radio"][data-qid]')) {
+        selectOption(target.getAttribute('data-qid'), target.getAttribute('data-optid'));
+      }
+    });
+
+    function selectOption(qId, optId) {
+      selectedAnswers[qId] = optId;
+      document.getElementById('answeredCountBadge').textContent = Object.keys(selectedAnswers).length;
+    }
+
+    async function submitExam() {
+      if (timerInterval) clearInterval(timerInterval);
+      const timeTakenSeconds = Math.round((Date.now() - startTime) / 1000);
+      const name = document.getElementById('candidateNameInput').value.trim() || 'Anonymous';
+      const inst = document.getElementById('candidateInstInput').value.trim() || 'College';
+
+      try {
+        const res = await fetch(`/api/v1/public/exam/${slug}/submit`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            candidateName: name,
+            candidateInstitution: inst,
+            answers: selectedAnswers,
+            timeTakenSeconds,
+            sessionId,
+          }),
+        });
+
+        if (res.ok) {
+          const result = await res.json();
+          showResults(result);
+        }
+      } catch (_) {}
+    }
+
+    function showResults(res) {
+      document.getElementById('stepExam').classList.add('hidden');
+      document.getElementById('headerTimerContainer').classList.add('hidden');
+      document.getElementById('stepResult').classList.remove('hidden');
+
+      document.getElementById('resultName').textContent = `${res.candidateName}!`;
+      document.getElementById('resultCollege').textContent = document.getElementById('candidateInstInput').value;
+      document.getElementById('resultScore').innerHTML = `${escapeHtml(res.score)} <span class="text-xs font-normal text-gray-500">/ ${escapeHtml(res.totalMarks)}</span>`;
+      document.getElementById('resultRank').textContent = `#${res.rank} of ${res.totalParticipants.toLocaleString()}`;
+      document.getElementById('resultCorrect').textContent = res.correctCount;
+      document.getElementById('resultWrong').textContent = res.wrongCount;
+
+      shareText = res.shareableResultText || `I scored ${res.score}/${res.totalMarks} on Prep404!`;
+
+      // Render Feedback List
+      const feedbackContainer = document.getElementById('feedbackList');
+      feedbackContainer.innerHTML = (res.feedback || []).map((f, i) => `
+        <div class="p-4 rounded-xl border ${f.isCorrect ? 'bg-emerald-500/10 border-emerald-500/20' : 'bg-rose-500/10 border-rose-500/20'} space-y-2 text-xs">
+          <div class="flex items-center justify-between font-bold">
+            <span class="${f.isCorrect ? 'text-emerald-400' : 'text-rose-400'}">${f.isCorrect ? '✅ Correct' : '❌ Incorrect / Unanswered'}</span>
+            <span class="text-gray-400">Correct Option: ${escapeHtml(f.correctOption || '')}</span>
+          </div>
+          <div class="text-gray-200 font-medium">${renderKaTeX(f.questionText)}</div>
+          <div class="p-2.5 rounded-lg bg-gray-950 text-gray-300 font-mono">
+            <strong>Solution:</strong> ${renderKaTeX(f.explanation || '')}
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function shareWhatsApp() {
+      const url = `https://api.whatsapp.com/send?text=${encodeURIComponent(shareText)}`;
+      window.open(url, '_blank');
+    }
+
+    window.onload = loadExam;
+  </script>
+</body>
+</html>

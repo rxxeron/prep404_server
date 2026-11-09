@@ -1,0 +1,57 @@
+# Dependencies
+node_modules/
+
+# Production / Build
+dist/
+build/
+
+# Environment
+.env
+*.env
+!.env.example
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+.pnpm-debug.log*
+
+# Misc
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Coverage
+coverage/
+
+
+# Book Scanner & Scans
+BookScans/
+bookscans/
+book_scanner/
+bookscanner/
+
+
+# Book Scanner & Scans
+BookScans/
+bookscans/
+book_scanner/
+bookscanner/
+*bookscan*
+*book_scan*
+*bookscanner*
+*book_scanner*
+*scanner*
+**/BookScans/
+**/bookscans/
+**/book_scanner/
+**/bookscanner/
+
+# Secrets and service accounts
+service-account.json
+*firebase*.json
+*.pem
+*.key
+

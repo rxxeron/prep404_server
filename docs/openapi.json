@@ -1,0 +1,380 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Prep404 Distributed Core API Specification",
+    "version": "1.0.0",
+    "description": "Authoritative OpenAPI contract for Prep404 Mobile, Admin Studio, and Edge services.",
+    "contact": {
+      "name": "Prep404 Engineering Team",
+      "email": "engineering@prep404.com"
+    }
+  },
+  "servers": [
+    {
+      "url": "http://localhost:4040",
+      "description": "Local Fastify Core Daemon"
+    },
+    {
+      "url": "https://api.prep404.com",
+      "description": "Production Edge Gateway"
+    }
+  ],
+  "paths": {
+    "/api/v1/admission-plan/patterns": {
+      "get": {
+        "summary": "Query dynamic admission test patterns and blueprints",
+        "parameters": [
+          {
+            "name": "universityCode",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "category",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of admission test patterns",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "count": {
+                      "type": "integer"
+                    },
+                    "patterns": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/AdmissionPattern"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/exam/{slug}/submit": {
+      "post": {
+        "summary": "Submit candidate exam answers for authoritative scoring",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExamSubmissionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Scoring receipt and percentile analysis",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExamScoringResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/user/onboarding": {
+      "post": {
+        "summary": "Submit candidate onboarding setup profile",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserProfileSync"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Candidate profile saved receipt",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "user": {
+                      "$ref": "#/components/schemas/UserProfileSync"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "QuestionOption": {
+        "type": "object",
+        "required": [
+          "id",
+          "text"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Option identifier (A, B, C, D)"
+          },
+          "text": {
+            "type": "string",
+            "description": "Option text or LaTeX body"
+          }
+        }
+      },
+      "Question": {
+        "type": "object",
+        "required": [
+          "id",
+          "questionText",
+          "options"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "questionText": {
+            "type": "string"
+          },
+          "hasMath": {
+            "type": "boolean",
+            "default": false
+          },
+          "options": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/QuestionOption"
+            }
+          },
+          "difficultyRating": {
+            "type": "number",
+            "default": 1
+          }
+        }
+      },
+      "AdmissionSection": {
+        "type": "object",
+        "required": [
+          "name",
+          "marks",
+          "weight"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "marks": {
+            "type": "integer"
+          },
+          "weight": {
+            "type": "integer"
+          },
+          "topics": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "AdmissionPattern": {
+        "type": "object",
+        "required": [
+          "id",
+          "universityId",
+          "universityCode",
+          "slug",
+          "patternName",
+          "totalMarks",
+          "durationMinutes",
+          "sections"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "universityId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "universityCode": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "patternName": {
+            "type": "string"
+          },
+          "totalMarks": {
+            "type": "number"
+          },
+          "durationMinutes": {
+            "type": "integer"
+          },
+          "hasNegativeMarking": {
+            "type": "boolean"
+          },
+          "negativeMarkingPenalty": {
+            "type": "number"
+          },
+          "sections": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdmissionSection"
+            }
+          }
+        }
+      },
+      "ExamSubmissionRequest": {
+        "type": "object",
+        "required": [
+          "examId",
+          "answers",
+          "timeSpentSeconds"
+        ],
+        "properties": {
+          "examId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "sessionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "answers": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "timeSpentSeconds": {
+            "type": "integer"
+          }
+        }
+      },
+      "ExamScoringResponse": {
+        "type": "object",
+        "required": [
+          "success",
+          "submissionId",
+          "score",
+          "correctCount",
+          "wrongCount",
+          "unansweredCount",
+          "accuracyPercent"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "submissionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "score": {
+            "type": "number"
+          },
+          "correctCount": {
+            "type": "integer"
+          },
+          "wrongCount": {
+            "type": "integer"
+          },
+          "unansweredCount": {
+            "type": "integer"
+          },
+          "accuracyPercent": {
+            "type": "number"
+          },
+          "rank": {
+            "type": "integer"
+          },
+          "percentile": {
+            "type": "number"
+          }
+        }
+      },
+      "UserProfileSync": {
+        "type": "object",
+        "required": [
+          "id",
+          "fullName",
+          "email",
+          "academicBatch",
+          "targetUniversities"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "fullName": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "phone": {
+            "type": "string"
+          },
+          "academicBatch": {
+            "type": "string"
+          },
+          "targetUniversities": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "studyHorizonDays": {
+            "type": "integer",
+            "default": 30
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "name": "prep404-backend",
+  "version": "1.0.0",
+  "description": "Prep404 High-Performance Core API & Real-Time Battle Engine",
+  "main": "dist/server.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "dev": "tsx watch src/server.ts",
+    "bootstrap:staff-admin": "tsx src/db/bootstrap_first_staff_admin.ts",
+    "test": "tsx test/exam_scoring.test.ts && tsx test/security_candidates_verify.test.ts && tsx test/staff_auth_audit.test.ts && tsx test/exam_session_telemetry.test.ts && tsx test/exam_ranked_flow.test.ts && tsx test/background_jobs_health.test.ts && tsx test/admin_health_endpoint.test.ts && tsx test/staff_role_matrix.test.ts && tsx test/learner_lookup_privacy.test.ts && tsx test/ai_safety_escalation.test.ts && tsx test/learner_identity_binding.test.ts && tsx test/support_request_idempotency.test.ts && tsx test/content_coverage.test.ts && tsx test/account_deletion.test.ts && tsx test/battle_identity_handshake.test.ts && tsx test/p1_regressions.test.ts && tsx test/rls_tables_audit.test.ts",
+    "db:migrate": "node src/db/run_migrations.js",
+    "db:migrate:status": "node src/db/run_migrations.js --status",
+    "db:migrate:baseline": "node src/db/run_migrations.js --baseline"
+  },
+  "dependencies": {
+    "@fastify/cors": "^9.0.1",
+    "@fastify/helmet": "^11.1.1",
+    "@fastify/jwt": "^8.0.0",
+    "@fastify/rate-limit": "^9.1.0",
+    "@fastify/swagger": "^8.15.0",
+    "dotenv": "^16.4.5",
+    "fastify": "^4.26.2",
+    "firebase-admin": "^14.5.0",
+    "ioredis": "^5.4.1",
+    "pg": "^8.11.5",
+    "ws": "^8.21.3",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^20.12.7",
+    "@types/pg": "^8.11.5",
+    "@types/ws": "^8.5.12",
+    "tsx": "^4.7.2",
+    "typescript": "^5.4.5"
+  }
+}

@@ -70,7 +70,7 @@ const files = [
   'lib/features/practice_map/presentation/widgets/roadmap_milestone_node.dart',
   'lib/core/widgets/prep404_logo.dart',
   'lib/features/dashboard/presentation/screens/main_dashboard_screen.dart',
-  'lib/features/dashboard/presentation/widgets/chorcha_bottom_nav_bar.dart',
+  'lib/features/dashboard/presentation/widgets/prep_bottom_nav_bar.dart',
   'lib/features/dashboard/presentation/widgets/profile_menu_components.dart',
   'lib/features/dashboard/presentation/widgets/profile_dialogs.dart',
   'lib/features/analytics/data/models/exam_history_item.dart',

@@ -282,7 +282,7 @@ export const publicExamRoutes: FastifyPluginAsync<{ db: Pool; redis: RedisServic
   });
 
   // =========================================================================
-  // 3. PRE-MATERIALIZED QUESTION SET SNAPSHOT API (Chorcha-style Edge Delivery)
+  // 3. PRE-MATERIALIZED QUESTION SET SNAPSHOT API (Prep404-style Edge Delivery)
   // Single-query instant fetch with Anti-Scraping / Out-of-app access protection
   // =========================================================================
   const handleQuestionSnapshot = async (req: FastifyRequest<{ Params: { slug: string } }>, reply: FastifyReply) => {

@@ -270,8 +270,7 @@ export const aiMentorRoutes: FastifyPluginAsync<{ db: Pool }> = async (
       // Fetch student profile + recent 12 messages for sliding context window
       const [userRes, historyRes] = await Promise.all([
         db.query(
-          `SELECT full_name, target_universities, target_unit, hsc_batch, medium
-           FROM public.users WHERE id = $1::uuid LIMIT 1`,
+          `SELECT * FROM public.users WHERE id = $1::uuid LIMIT 1`,
           [identity.userId],
         ),
         db.query(
@@ -291,7 +290,7 @@ export const aiMentorRoutes: FastifyPluginAsync<{ db: Pool }> = async (
         ? rawTargets.join(', ')
         : (rawTargets && typeof rawTargets === 'object'
             ? Object.keys(rawTargets).join(', ')
-            : String(rawTargets || userRow.target_unit || ''));
+            : String(rawTargets || userRow.target_track || ''));
       const historyMessages = historyRes.rows.reverse().map((m: any) => ({
         role: m.role as 'user' | 'assistant',
         content: String(m.content || ''),

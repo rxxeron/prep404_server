@@ -270,7 +270,7 @@ export const aiMentorRoutes: FastifyPluginAsync<{ db: Pool }> = async (
       // Fetch student profile + recent 12 messages for sliding context window
       const [userRes, historyRes] = await Promise.all([
         db.query(
-          `SELECT full_name, target_university, target_unit, hsc_batch, medium
+          `SELECT full_name, target_universities, target_unit, hsc_batch, medium
            FROM public.users WHERE id = $1::uuid LIMIT 1`,
           [identity.userId],
         ),
@@ -286,6 +286,12 @@ export const aiMentorRoutes: FastifyPluginAsync<{ db: Pool }> = async (
 
       const userRow = userRes.rows[0] || {};
       const studentName = String(userRow.full_name || 'Student').split(' ')[0];
+      const rawTargets = userRow.target_universities;
+      const targetUnisText = Array.isArray(rawTargets)
+        ? rawTargets.join(', ')
+        : (rawTargets && typeof rawTargets === 'object'
+            ? Object.keys(rawTargets).join(', ')
+            : String(rawTargets || userRow.target_unit || ''));
       const historyMessages = historyRes.rows.reverse().map((m: any) => ({
         role: m.role as 'user' | 'assistant',
         content: String(m.content || ''),
@@ -314,7 +320,7 @@ export const aiMentorRoutes: FastifyPluginAsync<{ db: Pool }> = async (
 
       const systemPrompt = buildSeniorBrotherSystemPrompt({
         studentName,
-        targetUniversities: String(userRow.target_university || userRow.target_unit || ''),
+        targetUniversities: targetUnisText,
         hscBatch: String(userRow.hsc_batch || ''),
         medium: String(userRow.medium || ''),
         detectedLang,

@@ -47,11 +47,13 @@ export const dailyTestRoutes: FastifyPluginAsync<ExamRouteOptions> = async (
       try {
         let query = `
           SELECT e.id, e.title, e.track, ROUND(e.duration_seconds / 60) AS "durationMinutes",
-                 e.total_marks AS "totalMarks", COALESCE(e.negative_mark_per_question, 0.25) AS "negativeMark",
+                 e.total_marks AS "totalMarks", COALESCE(e.negative_mark_per_question, 0) AS "negativeMark",
                  u.code AS "universityCode", u.full_name AS "universityName", u.logo_url AS "universityLogo"
           FROM exams e
           LEFT JOIN universities u ON u.id = e.target_university_id
           WHERE e.is_active = true
+            AND COALESCE(e.duration_seconds, 0) <= 10800
+            AND e.title NOT ILIKE '%HEALER PYQ%'
             AND (e.starts_at IS NULL OR e.starts_at <= now())
             AND (e.ends_at IS NULL OR e.ends_at > now())
         `;
@@ -67,11 +69,13 @@ export const dailyTestRoutes: FastifyPluginAsync<ExamRouteOptions> = async (
           // Fallback to any latest active exam
           examRes = await db.query(`
             SELECT e.id, e.title, e.track, ROUND(e.duration_seconds / 60) AS "durationMinutes",
-                   e.total_marks AS "totalMarks", COALESCE(e.negative_mark_per_question, 0.25) AS "negativeMark",
+                   e.total_marks AS "totalMarks", COALESCE(e.negative_mark_per_question, 0) AS "negativeMark",
                    u.code AS "universityCode", u.full_name AS "universityName", u.logo_url AS "universityLogo"
             FROM exams e
             LEFT JOIN universities u ON u.id = e.target_university_id
             WHERE e.is_active = true
+              AND COALESCE(e.duration_seconds, 0) <= 10800
+              AND e.title NOT ILIKE '%HEALER PYQ%'
               AND (e.starts_at IS NULL OR e.starts_at <= now())
               AND (e.ends_at IS NULL OR e.ends_at > now())
             ORDER BY e.created_at DESC LIMIT 1

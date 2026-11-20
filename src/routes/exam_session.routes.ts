@@ -227,9 +227,17 @@ export const examSessionRoutes: FastifyPluginAsync<ExamRouteOptions> = async (
     try {
       if (identity.userId) {
         const profile = await db.query('SELECT full_name, institution_name FROM public.users WHERE id=$1::uuid', [identity.userId]);
-        if (!profile.rowCount) return reply.status(403).send({ error: 'Complete your learner profile before submitting a ranked exam.' });
-        candidateName = profile.rows[0].full_name || candidateName;
-        candidateInstitution = profile.rows[0].institution_name || candidateInstitution;
+        if (profile.rowCount) {
+          candidateName = profile.rows[0].full_name || candidateName;
+          candidateInstitution = profile.rows[0].institution_name || candidateInstitution;
+        } else {
+          await db.query(
+            `INSERT INTO public.users (id, full_name, institution_name)
+             VALUES ($1::uuid, $2, $3)
+             ON CONFLICT (id) DO NOTHING`,
+            [identity.userId, candidateName || 'Prep404 Candidate', candidateInstitution || null]
+          ).catch(() => {});
+        }
       }
 
       // 1. Fetch exam metadata
@@ -446,9 +454,17 @@ export const examSessionRoutes: FastifyPluginAsync<ExamRouteOptions> = async (
     try {
       if (identity.userId) {
         const profile = await db.query('SELECT full_name, institution_name FROM public.users WHERE id=$1::uuid', [identity.userId]);
-        if (!profile.rowCount) return reply.status(403).send({ error: 'Complete your learner profile before submitting a ranked exam.' });
-        candidateName = profile.rows[0].full_name || candidateName;
-        candidateInstitution = profile.rows[0].institution_name || candidateInstitution;
+        if (profile.rowCount) {
+          candidateName = profile.rows[0].full_name || candidateName;
+          candidateInstitution = profile.rows[0].institution_name || candidateInstitution;
+        } else {
+          await db.query(
+            `INSERT INTO public.users (id, full_name, institution_name)
+             VALUES ($1::uuid, $2, $3)
+             ON CONFLICT (id) DO NOTHING`,
+            [identity.userId, candidateName || 'Prep404 Candidate', candidateInstitution || null]
+          ).catch(() => {});
+        }
       }
 
       // 1. Fetch key map from Redis

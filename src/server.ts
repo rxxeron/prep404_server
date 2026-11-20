@@ -34,6 +34,8 @@ import { battleModerationRoutes } from './routes/battle_moderation.routes';
 import { learnerAnalyticsRoutes } from './routes/learner_analytics.routes';
 import { streakRoutes } from './routes/streak.routes';
 import { notificationRoutes } from './routes/notification.routes';
+import { printableOmrRoutes } from './routes/printable_omr.routes';
+import { aiMentorRoutes } from './routes/ai_mentor.routes';
 import { startLearnerAnalyticsRetentionJob } from './services/learner_analytics.service';
 import { telemetryRoutes } from './routes/telemetry.routes';
 import { TelemetryBatchService } from './services/telemetry_batch.service';
@@ -274,6 +276,8 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(learnerAnalyticsRoutes, { db, redis: redisService });
   await app.register(streakRoutes, { db });
   await app.register(notificationRoutes, { db });
+  await app.register(printableOmrRoutes, { db });
+  await app.register(aiMentorRoutes, { db });
   await app.register(telemetryRoutes, routeOptions);
 
   // Auto-capture 5xx server errors and uncaught exceptions into telemetry buffer

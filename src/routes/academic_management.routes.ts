@@ -71,7 +71,7 @@ export const academicManagementRoutes: FastifyPluginAsync<{ db: Pool; redis: Red
         if (!uniRes.rowCount) return reply.status(404).send({ error: 'University not found' });
         const uni = uniRes.rows[0];
 
-        const [patternsRes, programsRes] = await Promise.all([
+        const [patternsRes, programsRes, unitsRes, cyclesRes] = await Promise.all([
           db.query(`
             SELECT 
               p.id, p.university_id AS "universityId", p.slug, p.pattern_name AS "patternName",
@@ -85,19 +85,50 @@ export const academicManagementRoutes: FastifyPluginAsync<{ db: Pool; redis: Red
           `, [uni.id]),
           db.query(`
             SELECT 
-              pr.id, pr.university_id AS "universityId", pr.slug, pr.name,
+              pr.id, pr.university_id AS "universityId", pr.academic_unit_id AS "academicUnitId",
+              pr.slug, pr.name,
               pr.degree_type AS "degreeType", pr.track_category AS "trackCategory",
               pr.total_credits AS "totalCredits", pr.duration_years AS "durationYears",
-              pr.is_active AS "isActive"
+              pr.is_active AS "isActive",
+              u.name AS "academicUnitName", u.short_code AS "academicUnitShortCode",
+              fs.billing_model AS "billingModel",
+              fs.tuition_per_credit AS "tuitionPerCredit",
+              fs.admission_fee_onetime AS "admissionFeeOnetime",
+              fs.estimated_total_cost AS "estimatedTotalCost",
+              fs.effective_year AS "effectiveYear"
             FROM public.programs pr
+            LEFT JOIN public.academic_units u ON u.id = pr.academic_unit_id
+            LEFT JOIN public.program_fee_structures fs ON fs.program_id = pr.id
             WHERE pr.university_id = $1::uuid
             ORDER BY pr.name ASC
+          `, [uni.id]),
+          db.query(`
+            SELECT 
+              u.id, u.university_id AS "universityId", u.slug, u.unit_type AS "unitType",
+              u.name, u.short_code AS "shortCode", u.created_at AS "createdAt",
+              (SELECT COUNT(*)::int FROM public.programs pr WHERE pr.academic_unit_id = u.id) AS "programCount"
+            FROM public.academic_units u
+            WHERE u.university_id = $1::uuid
+            ORDER BY u.name ASC
+          `, [uni.id]),
+          db.query(`
+            SELECT 
+              c.id, c.university_id AS "universityId", c.season, c.academic_year AS "academicYear",
+              c.status, c.slot_number AS "slotNumber", c.slot_title AS "slotTitle",
+              c.exam_date AS "examDate", c.exam_time AS "examTime",
+              c.application_deadline AS "applicationDeadline", c.application_fee AS "applicationFee",
+              c.venue, c.notes, c.created_at AS "createdAt"
+            FROM public.admission_cycles c
+            WHERE c.university_id = $1::uuid
+            ORDER BY c.academic_year DESC, c.slot_number ASC
           `, [uni.id]),
         ]);
 
         return {
           success: true,
           university: uni,
+          units: unitsRes.rows,
+          cycles: cyclesRes.rows,
           patterns: patternsRes.rows,
           programs: programsRes.rows,
         };
@@ -405,6 +436,240 @@ export const academicManagementRoutes: FastifyPluginAsync<{ db: Pool; redis: Red
       try {
         await db.query(`DELETE FROM public.programs WHERE id = $1::uuid`, [req.params.programId]);
         return { success: true };
+      } catch (err: any) {
+        return sendInternalError(reply, err);
+      }
+    }
+  );
+
+  // =========================================================================
+  // ACADEMIC UNITS (FACULTIES & SCHOOLS) MANAGEMENT
+  // =========================================================================
+
+  // Create Faculty / Academic Unit
+  app.post<{ Params: { id: string } }>(
+    '/api/v1/management/academic/universities/:id/units',
+    { preHandler: [requireStaffRole(['scheduler', 'super_admin'])] },
+    async (req, reply) => {
+      if (!db) return reply.status(503).send({ error: 'Database service unavailable' });
+      const schema = z.object({
+        name: z.string().trim().min(2).max(200),
+        shortCode: z.string().trim().max(30).optional().nullable(),
+        unitType: z.enum(['school', 'faculty', 'department', 'institute']).default('faculty'),
+        slug: z.string().trim().max(50).optional(),
+      });
+      const parsed = schema.safeParse(req.body);
+      if (!parsed.success) return reply.status(400).send({ error: parsed.error.errors[0].message });
+      const d = parsed.data;
+      const slug = (d.slug || d.shortCode || d.name).toLowerCase().replace(/[^a-z0-9]/g, '-');
+
+      try {
+        const ins = await db.query(`
+          INSERT INTO public.academic_units (
+            university_id, slug, unit_type, name, short_code
+          ) VALUES ($1::uuid, $2, $3, $4, $5)
+          RETURNING *;
+        `, [req.params.id, slug, d.unitType, d.name, d.shortCode || null]);
+        return { success: true, unit: ins.rows[0] };
+      } catch (err: any) {
+        return sendInternalError(reply, err);
+      }
+    }
+  );
+
+  // Update Faculty / Academic Unit
+  app.put<{ Params: { unitId: string } }>(
+    '/api/v1/management/academic/units/:unitId',
+    { preHandler: [requireStaffRole(['scheduler', 'super_admin'])] },
+    async (req, reply) => {
+      if (!db) return reply.status(503).send({ error: 'Database service unavailable' });
+      const schema = z.object({
+        name: z.string().trim().min(2).max(200).optional(),
+        shortCode: z.string().trim().max(30).optional().nullable(),
+        unitType: z.enum(['school', 'faculty', 'department', 'institute']).optional(),
+      });
+      const parsed = schema.safeParse(req.body);
+      if (!parsed.success) return reply.status(400).send({ error: parsed.error.errors[0].message });
+      const d = parsed.data;
+
+      try {
+        const updateRes = await db.query(`
+          UPDATE public.academic_units
+          SET 
+            name = COALESCE($2, name),
+            short_code = COALESCE($3, short_code),
+            unit_type = COALESCE($4, unit_type)
+          WHERE id = $1::uuid
+          RETURNING *;
+        `, [req.params.unitId, d.name, d.shortCode, d.unitType]);
+        if (!updateRes.rowCount) return reply.status(404).send({ error: 'Academic unit not found' });
+        return { success: true, unit: updateRes.rows[0] };
+      } catch (err: any) {
+        return sendInternalError(reply, err);
+      }
+    }
+  );
+
+  // Delete Faculty / Academic Unit
+  app.delete<{ Params: { unitId: string } }>(
+    '/api/v1/management/academic/units/:unitId',
+    { preHandler: [requireStaffRole(['super_admin'])] },
+    async (req, reply) => {
+      if (!db) return reply.status(503).send({ error: 'Database service unavailable' });
+      try {
+        await db.query(`DELETE FROM public.academic_units WHERE id = $1::uuid`, [req.params.unitId]);
+        return { success: true };
+      } catch (err: any) {
+        return sendInternalError(reply, err);
+      }
+    }
+  );
+
+  // =========================================================================
+  // ADMISSION CYCLES & TEST SLOTS MANAGEMENT
+  // =========================================================================
+
+  // Create Admission Cycle / Slot
+  app.post<{ Params: { id: string } }>(
+    '/api/v1/management/academic/universities/:id/cycles',
+    { preHandler: [requireStaffRole(['scheduler', 'super_admin'])] },
+    async (req, reply) => {
+      if (!db) return reply.status(503).send({ error: 'Database service unavailable' });
+      const schema = z.object({
+        season: z.string().trim().min(2).max(50),
+        academicYear: z.number().int().min(2020).max(2035),
+        status: z.enum(['upcoming', 'active', 'completed']).default('upcoming'),
+        slotNumber: z.number().int().min(1).max(20).default(1),
+        slotTitle: z.string().trim().max(200).optional().nullable(),
+        examDate: z.string().trim().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format must be YYYY-MM-DD'),
+        examTime: z.string().trim().max(100).optional().nullable(),
+        applicationDeadline: z.string().trim().optional().nullable(),
+        applicationFee: z.string().trim().max(50).default('৳ 1,500'),
+        venue: z.string().trim().max(255).optional().nullable(),
+        notes: z.string().trim().optional().nullable(),
+      });
+      const parsed = schema.safeParse(req.body);
+      if (!parsed.success) return reply.status(400).send({ error: parsed.error.errors[0].message });
+      const d = parsed.data;
+
+      try {
+        const ins = await db.query(`
+          INSERT INTO public.admission_cycles (
+            university_id, season, academic_year, status, slot_number, slot_title,
+            exam_date, exam_time, application_deadline, application_fee, venue, notes
+          ) VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+          RETURNING *;
+        `, [
+          req.params.id, d.season, d.academicYear, d.status, d.slotNumber, d.slotTitle || null,
+          d.examDate, d.examTime || null, d.applicationDeadline || null, d.applicationFee,
+          d.venue || null, d.notes || null
+        ]);
+        return { success: true, cycle: ins.rows[0] };
+      } catch (err: any) {
+        return sendInternalError(reply, err);
+      }
+    }
+  );
+
+  // Update Admission Cycle / Slot
+  app.put<{ Params: { cycleId: string } }>(
+    '/api/v1/management/academic/cycles/:cycleId',
+    { preHandler: [requireStaffRole(['scheduler', 'super_admin'])] },
+    async (req, reply) => {
+      if (!db) return reply.status(503).send({ error: 'Database service unavailable' });
+      const schema = z.object({
+        season: z.string().trim().min(2).max(50).optional(),
+        academicYear: z.number().int().min(2020).max(2035).optional(),
+        status: z.enum(['upcoming', 'active', 'completed']).optional(),
+        slotNumber: z.number().int().min(1).max(20).optional(),
+        slotTitle: z.string().trim().max(200).optional().nullable(),
+        examDate: z.string().trim().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format must be YYYY-MM-DD').optional(),
+        examTime: z.string().trim().max(100).optional().nullable(),
+        applicationDeadline: z.string().trim().optional().nullable(),
+        applicationFee: z.string().trim().max(50).optional(),
+        venue: z.string().trim().max(255).optional().nullable(),
+        notes: z.string().trim().optional().nullable(),
+      });
+      const parsed = schema.safeParse(req.body);
+      if (!parsed.success) return reply.status(400).send({ error: parsed.error.errors[0].message });
+      const d = parsed.data;
+
+      try {
+        const updateRes = await db.query(`
+          UPDATE public.admission_cycles
+          SET 
+            season = COALESCE($2, season),
+            academic_year = COALESCE($3, academic_year),
+            status = COALESCE($4, status),
+            slot_number = COALESCE($5, slot_number),
+            slot_title = COALESCE($6, slot_title),
+            exam_date = COALESCE($7, exam_date),
+            exam_time = COALESCE($8, exam_time),
+            application_deadline = COALESCE($9, application_deadline),
+            application_fee = COALESCE($10, application_fee),
+            venue = COALESCE($11, venue),
+            notes = COALESCE($12, notes)
+          WHERE id = $1::uuid
+          RETURNING *;
+        `, [
+          req.params.cycleId, d.season, d.academicYear, d.status, d.slotNumber, d.slotTitle,
+          d.examDate, d.examTime, d.applicationDeadline, d.applicationFee, d.venue, d.notes
+        ]);
+        if (!updateRes.rowCount) return reply.status(404).send({ error: 'Admission cycle not found' });
+        return { success: true, cycle: updateRes.rows[0] };
+      } catch (err: any) {
+        return sendInternalError(reply, err);
+      }
+    }
+  );
+
+  // Delete Admission Cycle / Slot
+  app.delete<{ Params: { cycleId: string } }>(
+    '/api/v1/management/academic/cycles/:cycleId',
+    { preHandler: [requireStaffRole(['super_admin'])] },
+    async (req, reply) => {
+      if (!db) return reply.status(503).send({ error: 'Database service unavailable' });
+      try {
+        await db.query(`DELETE FROM public.admission_cycles WHERE id = $1::uuid`, [req.params.cycleId]);
+        return { success: true };
+      } catch (err: any) {
+        return sendInternalError(reply, err);
+      }
+    }
+  );
+
+  // Update Program Fee Structure
+  app.put<{ Params: { programId: string } }>(
+    '/api/v1/management/academic/programs/:programId/fees',
+    { preHandler: [requireStaffRole(['scheduler', 'super_admin'])] },
+    async (req, reply) => {
+      if (!db) return reply.status(503).send({ error: 'Database service unavailable' });
+      const schema = z.object({
+        billingModel: z.enum(['per_credit', 'flat_semester']).default('per_credit'),
+        tuitionPerCredit: z.number().nonnegative().optional().nullable(),
+        admissionFeeOnetime: z.number().nonnegative().default(0),
+        estimatedTotalCost: z.number().nonnegative(),
+        effectiveYear: z.number().int().min(2020).max(2035).default(2026),
+      });
+      const parsed = schema.safeParse(req.body);
+      if (!parsed.success) return reply.status(400).send({ error: parsed.error.errors[0].message });
+      const d = parsed.data;
+
+      try {
+        const upsertRes = await db.query(`
+          INSERT INTO public.program_fee_structures (
+            program_id, billing_model, tuition_per_credit, admission_fee_onetime, estimated_total_cost, effective_year, updated_at
+          ) VALUES ($1::uuid, $2, $3, $4, $5, $6, NOW())
+          ON CONFLICT (program_id) DO UPDATE SET
+            billing_model = EXCLUDED.billing_model,
+            tuition_per_credit = EXCLUDED.tuition_per_credit,
+            admission_fee_onetime = EXCLUDED.admission_fee_onetime,
+            estimated_total_cost = EXCLUDED.estimated_total_cost,
+            effective_year = EXCLUDED.effective_year,
+            updated_at = NOW()
+          RETURNING *;
+        `, [req.params.programId, d.billingModel, d.tuitionPerCredit || null, d.admissionFeeOnetime, d.estimatedTotalCost, d.effectiveYear]);
+        return { success: true, fees: upsertRes.rows[0] };
       } catch (err: any) {
         return sendInternalError(reply, err);
       }

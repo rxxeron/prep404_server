@@ -1,3 +1,8 @@
+const path = require('path');
+require('dotenv').config({ path: path.resolve(__dirname, '../../../server/.env') });
+if (!process.env.DATABASE_URL) {
+  require('dotenv').config({ path: path.resolve(__dirname, '../../../.env') });
+}
 const { Client } = require('pg');
 
 const connStr = (process.env.DATABASE_URL || (() => { throw new Error('DATABASE_URL is not set'); })());
@@ -66,39 +71,39 @@ async function setupAcademicTables() {
       GRANT SELECT ON public.academic_boards TO anon, authenticated;
     `);
 
-    // 4. Seed initial academic_batches
+    // 4. Seed initial academic_batches (Strictly Ascending Order A-Z, 0-9)
     console.log('[Setup] Seeding initial academic_batches...');
     const batches = [
-      // SSC Passing Years
-      { id: 'ssc_2024', cur: 'NCTB', lvl: 'SSC', name: '2024', pass: 2024, link: null, act: true, app: false, sec: false, sort: 1 },
-      { id: 'ssc_2023', cur: 'NCTB', lvl: 'SSC', name: '2023', pass: 2023, link: null, act: true, app: false, sec: false, sort: 2 },
-      { id: 'ssc_2022', cur: 'NCTB', lvl: 'SSC', name: '2022', pass: 2022, link: null, act: true, app: false, sec: false, sort: 3 },
-      { id: 'ssc_2021', cur: 'NCTB', lvl: 'SSC', name: '2021', pass: 2021, link: null, act: true, app: false, sec: false, sort: 4 },
-      { id: 'ssc_2020', cur: 'NCTB', lvl: 'SSC', name: '2020', pass: 2020, link: null, act: true, app: false, sec: false, sort: 5 },
-      { id: 'ssc_2019', cur: 'NCTB', lvl: 'SSC', name: '2019', pass: 2019, link: null, act: true, app: false, sec: false, sort: 6 },
+      // SSC Passing Years (Ascending)
+      { id: 'ssc_2019', cur: 'NCTB', lvl: 'SSC', name: '2019', pass: 2019, link: null, act: true, app: false, sec: false, sort: 1 },
+      { id: 'ssc_2020', cur: 'NCTB', lvl: 'SSC', name: '2020', pass: 2020, link: null, act: true, app: false, sec: false, sort: 2 },
+      { id: 'ssc_2021', cur: 'NCTB', lvl: 'SSC', name: '2021', pass: 2021, link: null, act: true, app: false, sec: false, sort: 3 },
+      { id: 'ssc_2022', cur: 'NCTB', lvl: 'SSC', name: '2022', pass: 2022, link: null, act: true, app: false, sec: false, sort: 4 },
+      { id: 'ssc_2023', cur: 'NCTB', lvl: 'SSC', name: '2023', pass: 2023, link: null, act: true, app: false, sec: false, sort: 5 },
+      { id: 'ssc_2024', cur: 'NCTB', lvl: 'SSC', name: '2024', pass: 2024, link: null, act: true, app: false, sec: false, sort: 6 },
 
-      // HSC Batches
-      { id: 'hsc_26_app', cur: 'NCTB', lvl: 'HSC', name: "HSC '26 (Appearing)", pass: 2026, link: 2024, act: true, app: true, sec: false, sort: 1 },
-      { id: 'hsc_25', cur: 'NCTB', lvl: 'HSC', name: "HSC '25", pass: 2025, link: 2023, act: true, app: false, sec: false, sort: 2 },
-      { id: 'hsc_25_2nd', cur: 'NCTB', lvl: 'HSC', name: "HSC '25 (2nd Time)", pass: 2025, link: 2024, act: true, app: false, sec: true, sort: 3 },
-      { id: 'hsc_24', cur: 'NCTB', lvl: 'HSC', name: "HSC '24", pass: 2024, link: 2022, act: true, app: false, sec: false, sort: 4 },
-      { id: 'hsc_24_2nd', cur: 'NCTB', lvl: 'HSC', name: "HSC '24 (2nd Time)", pass: 2024, link: 2023, act: true, app: false, sec: true, sort: 5 },
-      { id: 'hsc_23_2nd', cur: 'NCTB', lvl: 'HSC', name: "HSC '23 (2nd Time)", pass: 2023, link: 2022, act: true, app: false, sec: true, sort: 6 },
+      // HSC Batches (Ascending)
+      { id: 'hsc_23_2nd', cur: 'NCTB', lvl: 'HSC', name: "HSC '23 (2nd Time)", pass: 2023, link: 2022, act: true, app: false, sec: true, sort: 1 },
+      { id: 'hsc_24', cur: 'NCTB', lvl: 'HSC', name: "HSC '24", pass: 2024, link: 2022, act: true, app: false, sec: false, sort: 2 },
+      { id: 'hsc_24_2nd', cur: 'NCTB', lvl: 'HSC', name: "HSC '24 (2nd Time)", pass: 2024, link: 2023, act: true, app: false, sec: true, sort: 3 },
+      { id: 'hsc_25', cur: 'NCTB', lvl: 'HSC', name: "HSC '25", pass: 2025, link: 2023, act: true, app: false, sec: false, sort: 4 },
+      { id: 'hsc_25_2nd', cur: 'NCTB', lvl: 'HSC', name: "HSC '25 (2nd Time)", pass: 2025, link: 2024, act: true, app: false, sec: true, sort: 5 },
+      { id: 'hsc_26_app', cur: 'NCTB', lvl: 'HSC', name: "HSC '26 (Appearing)", pass: 2026, link: 2024, act: true, app: true, sec: false, sort: 6 },
 
-      // O-Level Passing Years
-      { id: 'olevel_2024', cur: 'ENGLISH_MEDIUM', lvl: 'O_LEVEL', name: '2024', pass: 2024, link: null, act: true, app: false, sec: false, sort: 1 },
-      { id: 'olevel_2023', cur: 'ENGLISH_MEDIUM', lvl: 'O_LEVEL', name: '2023', pass: 2023, link: null, act: true, app: false, sec: false, sort: 2 },
-      { id: 'olevel_2022', cur: 'ENGLISH_MEDIUM', lvl: 'O_LEVEL', name: '2022', pass: 2022, link: null, act: true, app: false, sec: false, sort: 3 },
-      { id: 'olevel_2021', cur: 'ENGLISH_MEDIUM', lvl: 'O_LEVEL', name: '2021', pass: 2021, link: null, act: true, app: false, sec: false, sort: 4 },
-      { id: 'olevel_2020', cur: 'ENGLISH_MEDIUM', lvl: 'O_LEVEL', name: '2020', pass: 2020, link: null, act: true, app: false, sec: false, sort: 5 },
-      { id: 'olevel_2019', cur: 'ENGLISH_MEDIUM', lvl: 'O_LEVEL', name: '2019', pass: 2019, link: null, act: true, app: false, sec: false, sort: 6 },
+      // O-Level Passing Years (Ascending)
+      { id: 'olevel_2019', cur: 'ENGLISH_MEDIUM', lvl: 'O_LEVEL', name: '2019', pass: 2019, link: null, act: true, app: false, sec: false, sort: 1 },
+      { id: 'olevel_2020', cur: 'ENGLISH_MEDIUM', lvl: 'O_LEVEL', name: '2020', pass: 2020, link: null, act: true, app: false, sec: false, sort: 2 },
+      { id: 'olevel_2021', cur: 'ENGLISH_MEDIUM', lvl: 'O_LEVEL', name: '2021', pass: 2021, link: null, act: true, app: false, sec: false, sort: 3 },
+      { id: 'olevel_2022', cur: 'ENGLISH_MEDIUM', lvl: 'O_LEVEL', name: '2022', pass: 2022, link: null, act: true, app: false, sec: false, sort: 4 },
+      { id: 'olevel_2023', cur: 'ENGLISH_MEDIUM', lvl: 'O_LEVEL', name: '2023', pass: 2023, link: null, act: true, app: false, sec: false, sort: 5 },
+      { id: 'olevel_2024', cur: 'ENGLISH_MEDIUM', lvl: 'O_LEVEL', name: '2024', pass: 2024, link: null, act: true, app: false, sec: false, sort: 6 },
 
-      // A-Level Batches
-      { id: 'alevel_26_app', cur: 'ENGLISH_MEDIUM', lvl: 'A_LEVEL', name: "A-Level '26 (Appearing)", pass: 2026, link: 2024, act: true, app: true, sec: false, sort: 1 },
-      { id: 'alevel_25', cur: 'ENGLISH_MEDIUM', lvl: 'A_LEVEL', name: "A-Level '25", pass: 2025, link: 2023, act: true, app: false, sec: false, sort: 2 },
-      { id: 'alevel_25_2nd', cur: 'ENGLISH_MEDIUM', lvl: 'A_LEVEL', name: "A-Level '25 (2nd Time)", pass: 2025, link: 2024, act: true, app: false, sec: true, sort: 3 },
-      { id: 'alevel_24', cur: 'ENGLISH_MEDIUM', lvl: 'A_LEVEL', name: "A-Level '24", pass: 2024, link: 2022, act: true, app: false, sec: false, sort: 4 },
-      { id: 'alevel_24_2nd', cur: 'ENGLISH_MEDIUM', lvl: 'A_LEVEL', name: "A-Level '24 (2nd Time)", pass: 2024, link: 2023, act: true, app: false, sec: true, sort: 5 }
+      // A-Level Batches (Ascending)
+      { id: 'alevel_24', cur: 'ENGLISH_MEDIUM', lvl: 'A_LEVEL', name: "A-Level '24", pass: 2024, link: 2022, act: true, app: false, sec: false, sort: 1 },
+      { id: 'alevel_24_2nd', cur: 'ENGLISH_MEDIUM', lvl: 'A_LEVEL', name: "A-Level '24 (2nd Time)", pass: 2024, link: 2023, act: true, app: false, sec: true, sort: 2 },
+      { id: 'alevel_25', cur: 'ENGLISH_MEDIUM', lvl: 'A_LEVEL', name: "A-Level '25", pass: 2025, link: 2023, act: true, app: false, sec: false, sort: 3 },
+      { id: 'alevel_25_2nd', cur: 'ENGLISH_MEDIUM', lvl: 'A_LEVEL', name: "A-Level '25 (2nd Time)", pass: 2025, link: 2024, act: true, app: false, sec: true, sort: 4 },
+      { id: 'alevel_26_app', cur: 'ENGLISH_MEDIUM', lvl: 'A_LEVEL', name: "A-Level '26 (Appearing)", pass: 2026, link: 2024, act: true, app: true, sec: false, sort: 5 }
     ];
 
     for (const b of batches) {

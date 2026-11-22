@@ -47,6 +47,24 @@ export const practiceRoutes: FastifyPluginAsync<{ db?: Pool; redis?: RedisServic
         if (!previous.rowCount || previous.rows[0].question_id !== questionId || previous.rows[0].selected_option_id !== selectedOptionId) return reply.status(409).send({ error: 'This attempt ID was already used.' });
       }
       if (inserted.rowCount) {
+        if (!isCorrect) {
+          try {
+            await db.query(
+              `INSERT INTO public.mistake_vault (
+                 user_id, question_id, university_code, wrong_count, consecutive_correct, next_review_at, is_mastered, last_reviewed_at
+               ) VALUES ($1::uuid, $2::uuid, 'gen', 1, 0, NOW() + INTERVAL '1 day', false, NOW())
+               ON CONFLICT (user_id, question_id) DO UPDATE SET
+                 wrong_count = mistake_vault.wrong_count + 1,
+                 consecutive_correct = 0,
+                 is_mastered = false,
+                 next_review_at = NOW() + INTERVAL '1 day',
+                 last_reviewed_at = NOW()`,
+              [userId, questionId],
+            );
+          } catch (mvErr) {
+            req.log.warn({ err: mvErr, userId, questionId }, 'Practice mistake was not recorded in mistake_vault');
+          }
+        }
         try { await recordLearnerEvent(db, userId, 'practice_attempted'); }
         catch (err) { req.log.warn({ err }, 'Optional practice analytics event was not recorded'); }
       }

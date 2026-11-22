@@ -70,17 +70,16 @@ const INSERT_OUTCOMES = `INSERT INTO public.exam_submission_answers
   ON CONFLICT (submission_id, question_id) DO NOTHING`;
 
 const UPSERT_MISTAKES = `INSERT INTO mistake_vault (
-    user_id, question_id, student_wrong_option, correct_option, explanation, due_at
+    user_id, question_id, university_code, wrong_count, consecutive_correct, next_review_at, is_mastered, last_reviewed_at
   )
-  SELECT $1::uuid, item.question_id::uuid, item.wrong_option, item.correct_option, item.explanation, NOW() + INTERVAL '1 day'
-  FROM jsonb_to_recordset($2::jsonb) AS item(
-    question_id text, wrong_option text, correct_option text, explanation text
-  )
+  SELECT $1::uuid, item.question_id::uuid, $2, 1, 0, NOW() + INTERVAL '1 day', false, NOW()
+  FROM jsonb_to_recordset($3::jsonb) AS item(question_id text)
   ON CONFLICT (user_id, question_id) DO UPDATE SET
-    student_wrong_option = EXCLUDED.student_wrong_option,
-    correct_option = EXCLUDED.correct_option,
-    explanation = EXCLUDED.explanation,
-    due_at = NOW() + INTERVAL '1 day'`;
+    wrong_count = mistake_vault.wrong_count + 1,
+    consecutive_correct = 0,
+    is_mastered = false,
+    next_review_at = NOW() + INTERVAL '1 day',
+    last_reviewed_at = NOW()`;
 
 /** Run an optional write inside a savepoint so its failure cannot undo the submission. */
 async function bestEffort(client: PoolClient, log: FastifyBaseLogger, name: string, sql: string, values: unknown[]) {
@@ -167,14 +166,10 @@ export async function persistExamAttempt(
     if (attempt.recordMistakes) {
       const mistakes = attempt.outcomes
         .filter((item) => item.selectedOption && !item.isCorrect)
-        .map((item) => ({
-          question_id: item.questionId,
-          wrong_option: item.selectedOption,
-          correct_option: item.correctOption,
-          explanation: item.explanation ?? null,
-        }));
+        .map((item) => ({ question_id: item.questionId }));
       if (mistakes.length) {
-        await bestEffort(client, log, 'mistake_vault', UPSERT_MISTAKES, [attempt.userId, JSON.stringify(mistakes)]);
+        const uCode = (attempt.universityCode || 'gen').toLowerCase();
+        await bestEffort(client, log, 'mistake_vault', UPSERT_MISTAKES, [attempt.userId, uCode, JSON.stringify(mistakes)]);
       }
     }
     await client.query('COMMIT');

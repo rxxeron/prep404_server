@@ -2,6 +2,7 @@ import { WebSocket } from 'ws';
 import { Pool } from 'pg';
 import { randomUUID } from 'crypto';
 import { verifySupabaseAccessToken } from '../services/supabase_auth.service';
+import { recordMistakesToVault } from '../services/mistake_vault.service';
 import { RedisService } from '../redis/redis.service';
 
 export interface DuelQuestion {
@@ -405,6 +406,15 @@ export class RealBattleGateway {
             player.selectedOption = optionId;
             player.roundPoints = points;
             player.score += points;
+
+            // Record wrong battle answers into the learner's Mistake Vault (fire-and-forget)
+            if (!isCorrect && currentQ?.id) {
+              void recordMistakesToVault(this.db, {
+                userId: player.userId,
+                questionIds: [currentQ.id],
+                universityCode: 'battle',
+              });
+            }
 
             // Notify opponents that player answered
             for (const pl of room.players) {

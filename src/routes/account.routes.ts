@@ -52,6 +52,10 @@ export const accountRoutes: FastifyPluginAsync<{ db: Pool }> = async (
          VALUES ($1, 'learner', 'learner.account.deleted', 'learner_account', $1, $2::jsonb)`,
         [`deleted:${subjectHash}`, JSON.stringify({ subjectHash, channel: 'self_service', reason: parsedBody.data.reason })],
       );
+      await client.query(
+        'UPDATE public.battle_rooms SET winner_id = NULL WHERE winner_id = $1::uuid',
+        [userId],
+      );
       await client.query('DELETE FROM public.users WHERE id = $1::uuid', [userId]);
       const response = await fetch(`${supabaseUrl}/auth/v1/admin/users/${encodeURIComponent(userId)}`, {
         method: 'DELETE',

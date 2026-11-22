@@ -11,6 +11,7 @@ import { hashExamSessionId, recordExamSessionCompletion, recordExamSessionFailur
 import { persistExamAttempt, PersistedAttempt, SubmissionPersistenceError } from '../services/exam_submission.service';
 import { resolveCandidateIdentity } from '../services/learner_identity.service';
 import { recordLearnerEvent } from '../services/learner_analytics.service';
+import { recordMistakesToVault } from '../services/mistake_vault.service';
 
 /** Server-owned exam sessions (option scrambling) and scored submissions. */
 export const examSessionRoutes: FastifyPluginAsync<ExamRouteOptions> = async (
@@ -284,8 +285,8 @@ export const examSessionRoutes: FastifyPluginAsync<ExamRouteOptions> = async (
         timeTakenSeconds: authoritativeTimeTaken,
       });
 
-      // Anti-Cheat Check 1: Minimum realistic completion time (at least 0.5s per question to prevent automated bot scripts)
-      if (evaluation.isSuspiciousSpeed) {
+      // Anti-Cheat Check 1: Minimum realistic completion time (ranked exams only)
+      if (!parse.data.isPractice && evaluation.isSuspiciousSpeed) {
         return reply.status(400).send({ 
           error: 'Submission rejected: completion time is unnaturally low. Automated script detected.',
           code: 'SUSPICIOUS_SPEED'
@@ -362,7 +363,7 @@ export const examSessionRoutes: FastifyPluginAsync<ExamRouteOptions> = async (
               isCorrect: item.isCorrect,
               explanation: item.explanation,
             })),
-            recordMistakes: false,
+            recordMistakes: true,
             questionsSnapshot: attemptSnapshot.length > 0 ? attemptSnapshot : undefined,
           });
         } catch (err) {
@@ -537,7 +538,7 @@ export const examSessionRoutes: FastifyPluginAsync<ExamRouteOptions> = async (
       const reviewFeedback: any[] = [];
 
       // Anti-Cheat Check 1: Minimum realistic completion time (at least 0.5s per question to prevent automated bot scripts)
-      if (ExamScoringService.isSubmissionSuspiciouslyFast(authoritativeTimeTaken, totalQuestions)) {
+      if (!parse.data.isPractice && ExamScoringService.isSubmissionSuspiciouslyFast(authoritativeTimeTaken, totalQuestions)) {
         if (sessionId) {
           await recordExamSessionFailure(db, examId, sessionId, 'suspicious_speed').catch(() => undefined);
         }
@@ -569,22 +570,13 @@ export const examSessionRoutes: FastifyPluginAsync<ExamRouteOptions> = async (
         }
 
         // Auto-record wrong question into student mistake vault
-        if (!isCorrect && studentChoice && userId && userId.includes('-')) {
-          try {
-            const uCode = (exam.universityCode || exam.track || 'gen').toLowerCase();
-            await db.query(`
-              INSERT INTO mistake_vault (
-                user_id, question_id, university_code, wrong_count, next_review_at, is_mastered, last_reviewed_at
-              ) VALUES ($1::uuid, $2::uuid, $3, 1, NOW() + INTERVAL '1 day', false, NOW())
-              ON CONFLICT (user_id, question_id) DO UPDATE SET
-                wrong_count = mistake_vault.wrong_count + 1,
-                is_mastered = false,
-                next_review_at = NOW() + INTERVAL '1 day',
-                last_reviewed_at = NOW();
-            `, [userId, q.id, uCode]);
-          } catch (mvErr) {
-            req.log.warn({ err: mvErr, userId, questionId: q.id }, 'Unable to record mistake in vault');
-          }
+        if (!isCorrect && studentChoice && identity.userId) {
+          await recordMistakesToVault(db, {
+            userId: identity.userId,
+            questionIds: [q.id],
+            universityCode: exam.universityCode || exam.track || 'gen',
+            log: req.log,
+          });
         }
 
         reviewFeedback.push({
@@ -1006,23 +998,40 @@ export const examSessionRoutes: FastifyPluginAsync<ExamRouteOptions> = async (
     }
 
     try {
-      // 1. Weakest Topics Ranking (by mistakes & skips deficit)
+      // 1. Weakest Topics Ranking (exam mistakes/skips + practice mistakes + mistake_vault)
       const topicRes = await db.query(`
+        WITH combined AS (
+          SELECT esa.topic_id, esa.subject_id, esa.outcome
+          FROM exam_submission_answers esa
+          JOIN exam_submissions es ON es.id = esa.submission_id
+          WHERE es.user_id = $1::uuid
+            AND esa.outcome IN ('wrong', 'skipped')
+          UNION ALL
+          SELECT pa.topic_id, pa.subject_id, 'wrong'::text AS outcome
+          FROM public.practice_attempts pa
+          WHERE pa.user_id = $1::uuid
+            AND pa.is_correct = false
+            AND pa.topic_id IS NOT NULL
+          UNION ALL
+          SELECT q.topic_id, q.subject_id, 'wrong'::text AS outcome
+          FROM public.mistake_vault mv
+          JOIN public.questions q ON q.id = mv.question_id
+          WHERE mv.user_id = $1::uuid
+            AND mv.is_mastered = false
+            AND q.topic_id IS NOT NULL
+        )
         SELECT
           t.id AS "topicId",
           t.name AS "topicName",
           s.id AS "subjectId",
           s.name AS "subjectName",
-          COUNT(CASE WHEN esa.outcome = 'wrong' THEN 1 END)::int AS "wrongCount",
-          COUNT(CASE WHEN esa.outcome = 'skipped' THEN 1 END)::int AS "skippedCount",
-          (COUNT(CASE WHEN esa.outcome = 'wrong' THEN 1 END) * 2 + COUNT(CASE WHEN esa.outcome = 'skipped' THEN 1 END))::int AS "deficitScore",
+          COUNT(CASE WHEN c.outcome = 'wrong' THEN 1 END)::int AS "wrongCount",
+          COUNT(CASE WHEN c.outcome = 'skipped' THEN 1 END)::int AS "skippedCount",
+          (COUNT(CASE WHEN c.outcome = 'wrong' THEN 1 END) * 2 + COUNT(CASE WHEN c.outcome = 'skipped' THEN 1 END))::int AS "deficitScore",
           COUNT(*)::int AS "totalAttempts"
-        FROM exam_submission_answers esa
-        JOIN exam_submissions es ON es.id = esa.submission_id
-        JOIN academic_topics t ON t.id = esa.topic_id
-        LEFT JOIN academic_subjects s ON s.id = esa.subject_id
-        WHERE es.user_id = $1::uuid
-          AND esa.outcome IN ('wrong', 'skipped')
+        FROM combined c
+        JOIN academic_topics t ON t.id = c.topic_id
+        LEFT JOIN academic_subjects s ON s.id = c.subject_id
         GROUP BY t.id, t.name, s.id, s.name
         ORDER BY "deficitScore" DESC, "wrongCount" DESC
         LIMIT 10;
@@ -1130,6 +1139,32 @@ export const examSessionRoutes: FastifyPluginAsync<ExamRouteOptions> = async (
       req.log.error({ err, userId }, 'Error generating vault summary');
       return sendInternalError(reply, err);
     }
+  });
+
+  // =========================================================================
+  // 12B. RECORD MISTAKES FROM CUSTOM / ADAPTIVE / PRACTICE EXAMS INTO VAULT
+  // =========================================================================
+  app.post('/api/v1/user/vault/mistakes', async (req: FastifyRequest, reply: FastifyReply) => {
+    if (!db) return reply.status(503).send({ error: 'Database service unavailable' });
+    const identity = await resolveCandidateIdentity(req);
+    if (identity.statusCode) return reply.status(identity.statusCode).send({ error: identity.error });
+    if (!identity.userId) return reply.status(401).send({ error: 'Sign in to record mistakes in your vault.' });
+
+    const parsed = z.object({
+      questionIds: z.array(z.string().uuid()).min(1).max(200),
+      universityCode: z.string().trim().max(32).optional(),
+    }).safeParse(req.body || {});
+    if (!parsed.success) {
+      return reply.status(400).send({ error: 'Invalid mistake payload.' });
+    }
+
+    const recorded = await recordMistakesToVault(db, {
+      userId: identity.userId,
+      questionIds: parsed.data.questionIds,
+      universityCode: parsed.data.universityCode || 'gen',
+      log: req.log,
+    });
+    return reply.send({ success: true, recorded });
   });
 
   // =========================================================================

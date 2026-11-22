@@ -3,6 +3,7 @@ import { Pool } from 'pg';
 import crypto from 'crypto';
 import { z } from 'zod';
 import { resolveCandidateIdentity } from '../services/learner_identity.service';
+import { recordMistakesToVault } from '../services/mistake_vault.service';
 import { sendInternalError } from '../services/http_errors';
 
 const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -409,9 +410,9 @@ export const printableOmrRoutes: FastifyPluginAsync<{ db: Pool }> = async (
     try {
       const setRes = await db.query(
         isUuid
-          ? `SELECT id, short_code, total_questions, negative_mark::float AS negative_mark, answer_key
+          ? `SELECT id, short_code, university_code, total_questions, negative_mark::float AS negative_mark, answer_key, question_snapshot
              FROM public.printable_omr_sets WHERE id = $1::uuid LIMIT 1`
-          : `SELECT id, short_code, total_questions, negative_mark::float AS negative_mark, answer_key
+          : `SELECT id, short_code, university_code, total_questions, negative_mark::float AS negative_mark, answer_key, question_snapshot
              FROM public.printable_omr_sets WHERE UPPER(short_code) = $1 LIMIT 1`,
         [isUuid ? rawCode.trim() : normalizedCode],
       );
@@ -422,10 +423,20 @@ export const printableOmrRoutes: FastifyPluginAsync<{ db: Pool }> = async (
 
       const pack = setRes.rows[0];
       const answerKey: Record<string, string> = pack.answer_key || {};
+      const snapshotList: Array<{ order?: number; questionId?: string }> = Array.isArray(pack.question_snapshot)
+        ? pack.question_snapshot
+        : [];
+      const orderToQuestionId = new Map<string, string>();
+      for (const item of snapshotList) {
+        if (item?.order != null && item?.questionId) {
+          orderToQuestionId.set(String(item.order), String(item.questionId));
+        }
+      }
       const totalQuestions = Number(pack.total_questions) || Object.keys(answerKey).length;
       const negativeMark = Number(pack.negative_mark) || 0;
 
       const normalizedAnswers: Record<string, string> = {};
+      const wrongQuestionIds: string[] = [];
       let correctCount = 0;
       let wrongCount = 0;
 
@@ -438,6 +449,8 @@ export const printableOmrRoutes: FastifyPluginAsync<{ db: Pool }> = async (
           correctCount += 1;
         } else {
           wrongCount += 1;
+          const qId = orderToQuestionId.get(String(qNum));
+          if (qId) wrongQuestionIds.push(qId);
         }
       }
 
@@ -472,6 +485,15 @@ export const printableOmrRoutes: FastifyPluginAsync<{ db: Pool }> = async (
           parsed.data.notes ?? null,
         ],
       );
+
+      if (wrongQuestionIds.length > 0) {
+        await recordMistakesToVault(db, {
+          userId: identity.userId,
+          questionIds: wrongQuestionIds,
+          universityCode: pack.university_code || 'gen',
+          log: req.log,
+        });
+      }
 
       return reply.status(201).send({
         success: true,
